@@ -1,120 +1,134 @@
 import { useEffect, useState } from "react";
+
 import StatCard from "../components/dashboard/StatCard";
 import RoadStatusList from "../components/dashboard/RoadStatusList";
 import TrafficMap from "../components/dashboard/TrafficMap";
 import TrafficChart from "../components/dashboard/TrafficChart";
 import TrafficAlerts from "../components/dashboard/TrafficAlerts";
+import TrafficPrediction from "../components/dashboard/TrafficPrediction";
 
 import {
-  getTrafficOverview,
   getTrafficRoads,
+  getTrafficPredictions,
   connectTrafficWebSocket,
   type RoadTraffic,
+  type TrafficPrediction as TrafficPredictionData,
 } from "../services/trafficApi";
-
-
-interface TrafficOverview {
-  active_vehicles: number;
-  congestion: number;
-  average_speed: number;
-  active_alerts: number;
-}
-
 
 function Dashboard() {
   const [roads, setRoads] = useState<RoadTraffic[]>([]);
-  const [traffic, setTraffic] = useState<TrafficOverview | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-const [trafficHistory, setTrafficHistory] = useState<
-  {
-    time: string;
-    congestion: number;
-    roadId: string;
-  }[]
->([]);
+
+  const [predictions, setPredictions] =
+    useState<TrafficPredictionData[]>([]);
+
+  const [trafficHistory, setTrafficHistory] =
+    useState<
+      {
+        time: string;
+        congestion: number;
+        roadId: string;
+      }[]
+    >([]);
+
+  const [lastUpdated, setLastUpdated] =
+    useState<Date | null>(null);
+
+  const [error, setError] =
+    useState<string | null>(null);
 
   useEffect(() => {
-    // Get initial traffic overview
-    getTrafficOverview()
-      .then((data) => {
-        setTraffic(data);
-      })
-      .catch(() => {
-        setError("Unable to connect to traffic backend.");
-      });
-
-
-    // Get initial road data
     getTrafficRoads()
       .then((data) => {
         setRoads(data);
       })
       .catch(() => {
-        setError("Unable to load road traffic data.");
+        setError(
+          "Unable to load road traffic data."
+        );
       });
 
+    getTrafficPredictions()
+      .then((data) => {
+        setPredictions(data);
+      })
+      .catch(() => {
+        setError(
+          "Unable to load traffic predictions."
+        );
+      });
 
-    // Connect to live traffic WebSocket
-    const socket = connectTrafficWebSocket((updatedRoads) => {
-  setRoads(updatedRoads);
-  setLastUpdated(new Date());
+    const socket = connectTrafficWebSocket(
+      (updatedRoads, updatedPredictions) => {
+        setRoads(updatedRoads);
 
-  const activeVehicles = updatedRoads.reduce(
-    (total, road) => total + road.vehicle_count,
-    0
-  );
+        setPredictions(updatedPredictions);
 
-  const averageSpeed =
-    updatedRoads.reduce(
-      (total, road) => total + road.average_speed,
-      0
-    ) / updatedRoads.length;
+        setLastUpdated(new Date());
 
-  const congestion =
-    updatedRoads.reduce(
-      (total, road) => total + road.congestion,
-      0
-    ) / updatedRoads.length;
-  const historyPoints = updatedRoads.map((road) => ({
-  time: new Date().toLocaleTimeString(),
-  congestion: road.congestion,
-  roadId: road.road_id,
-}));
+        const historyPoints = updatedRoads.map(
+          (road) => ({
+            time: new Date().toLocaleTimeString(),
+            congestion: road.congestion,
+            roadId: road.road_id,
+          })
+        );
 
-setTrafficHistory((previous) => [
-  ...previous,
-  ...historyPoints,
-].slice(-80));
-  const activeAlerts = updatedRoads.filter(
-    (road) => road.status === "Heavy"
-  ).length;
+        setTrafficHistory((previous) => [
+          ...previous,
+          ...historyPoints,
+        ]);
+      }
+    );
 
-  setTraffic({
-    active_vehicles: activeVehicles,
-    congestion: Number(congestion.toFixed(1)),
-    average_speed: Number(averageSpeed.toFixed(1)),
-    active_alerts: activeAlerts,
-  });
-});
-
-    // Close WebSocket when Dashboard is removed
     return () => {
       socket.close();
     };
   }, []);
 
+  /*
+   * Calculate dashboard statistics
+   * directly from the live road data.
+   */
+
+  const activeVehicles = roads.reduce(
+    (total, road) =>
+      total + road.vehicle_count,
+    0
+  );
+
+  const averageCongestion =
+    roads.length > 0
+      ? roads.reduce(
+          (total, road) =>
+            total + road.congestion,
+          0
+        ) / roads.length
+      : 0;
+
+  const averageSpeed =
+    roads.length > 0
+      ? roads.reduce(
+          (total, road) =>
+            total + road.average_speed,
+          0
+        ) / roads.length
+      : 0;
+
+  const activeAlerts = roads.filter(
+    (road) => road.congestion >= 45
+  ).length;
 
   if (error) {
     return (
       <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-5">
-        <p className="text-red-400">{error}</p>
+        <p className="text-red-400">
+          {error}
+        </p>
       </div>
     );
   }
 
-
-  if (!traffic) {
+  if (roads.length === 0) {
     return (
       <div>
         <p className="text-slate-400">
@@ -124,10 +138,8 @@ setTrafficHistory((previous) => [
     );
   }
 
-
   return (
     <div>
-
       {/* Dashboard Header */}
       <div>
         <h2 className="text-3xl font-bold text-white">
@@ -137,70 +149,78 @@ setTrafficHistory((previous) => [
         <p className="mt-2 text-slate-400">
           Real-time traffic overview
         </p>
+
         {lastUpdated && (
-  <div className="mt-3 flex items-center gap-2 text-sm">
-    <span className="h-2 w-2 animate-pulse rounded-full bg-green-400" />
+          <div className="mt-3 flex items-center gap-2 text-sm">
+            <span className="h-2 w-2 animate-pulse rounded-full bg-green-400" />
 
-    <span className="text-green-400">
-      LIVE
-    </span>
+            <span className="text-green-400">
+              LIVE
+            </span>
 
-    <span className="text-slate-500">
-      • Updated{" "}
-      {lastUpdated.toLocaleTimeString()}
-    </span>
-  </div>
-)}
+            <span className="text-slate-500">
+              • Updated{" "}
+              {lastUpdated.toLocaleTimeString()}
+            </span>
+          </div>
+        )}
       </div>
 
-
-      {/* Traffic Statistics */}
+      {/* Live Traffic Statistics */}
       <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-
         <StatCard
           title="Active Vehicles"
-          value={traffic.active_vehicles.toLocaleString()}
+          value={activeVehicles.toLocaleString()}
           description="Across monitored roads"
         />
 
         <StatCard
           title="Congestion"
-          value={`${traffic.congestion}%`}
-          description="Current city congestion"
+          value={`${averageCongestion.toFixed(1)}%`}
+          description="Current monitored roads"
         />
 
         <StatCard
           title="Average Speed"
-          value={`${traffic.average_speed} km/h`}
+          value={`${averageSpeed.toFixed(1)} km/h`}
           description="Across monitored roads"
         />
 
         <StatCard
           title="Active Alerts"
-          value={traffic.active_alerts.toString()}
+          value={activeAlerts.toString()}
           description="Require attention"
         />
-
       </div>
 
-<div className="mt-6">
- <TrafficMap roads={roads} />
-</div>
+      {/* Digital Twin Map */}
+      <div className="mt-6">
+        <TrafficMap roads={roads} />
+      </div>
 
-      {/* Live Road Status */}
+      {/* Congestion Analytics */}
+      <div className="mt-6">
+        <TrafficChart data={trafficHistory} />
+      </div>
+
+      {/* Traffic Forecast */}
+      <div className="mt-6">
+        <TrafficPrediction
+          predictions={predictions}
+        />
+      </div>
+
+      {/* Traffic Alerts */}
+      <div className="mt-6">
+        <TrafficAlerts roads={roads} />
+      </div>
+
+      {/* Road Status */}
       <div className="mt-6">
         <RoadStatusList roads={roads} />
       </div>
-      <div className="mt-6">
-  <TrafficChart data={trafficHistory} />
-  <div className="mt-6">
-  <TrafficAlerts roads={roads} />
-</div>
-</div>
-
     </div>
   );
 }
-
 
 export default Dashboard;

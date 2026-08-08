@@ -1,16 +1,5 @@
 const API_BASE_URL = "http://127.0.0.1:8000";
 
-export async function getTrafficOverview() {
-  const response = await fetch(
-    `${API_BASE_URL}/api/traffic/overview`
-  );
-
-  if (!response.ok) {
-    throw new Error("Failed to fetch traffic overview");
-  }
-
-  return response.json();
-}
 export interface RoadTraffic {
   road_id: string;
   road_name: string;
@@ -21,19 +10,65 @@ export interface RoadTraffic {
   status: string;
 }
 
-export async function getTrafficRoads(): Promise<RoadTraffic[]> {
+export interface TrafficPrediction {
+  road_id: string;
+  road_name: string;
+  current_congestion: number;
+  predicted_congestion: number;
+  prediction_status: string;
+}
+
+export async function getTrafficOverview() {
+  const response = await fetch(
+    `${API_BASE_URL}/api/traffic/overview`
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      "Failed to fetch traffic overview"
+    );
+  }
+
+  return response.json();
+}
+
+export async function getTrafficRoads(): Promise<
+  RoadTraffic[]
+> {
   const response = await fetch(
     `${API_BASE_URL}/api/traffic/roads`
   );
 
   if (!response.ok) {
-    throw new Error("Failed to fetch traffic roads");
+    throw new Error(
+      "Failed to fetch traffic roads"
+    );
   }
 
   return response.json();
 }
+
+export async function getTrafficPredictions(): Promise<
+  TrafficPrediction[]
+> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/traffic/predictions`
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      "Failed to fetch traffic predictions"
+    );
+  }
+
+  return response.json();
+}
+
 export function connectTrafficWebSocket(
-  onUpdate: (roads: RoadTraffic[]) => void
+  onUpdate: (
+    roads: RoadTraffic[],
+    predictions: TrafficPrediction[]
+  ) => void
 ) {
   const socket = new WebSocket(
     "ws://127.0.0.1:8000/ws/traffic"
@@ -42,11 +77,16 @@ export function connectTrafficWebSocket(
   socket.onmessage = (event) => {
     const data = JSON.parse(event.data);
 
-    onUpdate(data.roads);
+    onUpdate(
+      data.roads,
+      data.predictions
+    );
   };
 
   socket.onerror = () => {
-    console.error("Traffic WebSocket connection failed");
+    console.error(
+      "Traffic WebSocket connection failed"
+    );
   };
 
   return socket;
