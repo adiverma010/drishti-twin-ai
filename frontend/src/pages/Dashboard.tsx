@@ -3,6 +3,7 @@ import StatCard from "../components/dashboard/StatCard";
 import RoadStatusList from "../components/dashboard/RoadStatusList";
 import TrafficMap from "../components/dashboard/TrafficMap";
 import TrafficChart from "../components/dashboard/TrafficChart";
+import TrafficAlerts from "../components/dashboard/TrafficAlerts";
 
 import {
   getTrafficOverview,
@@ -26,7 +27,11 @@ function Dashboard() {
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 const [trafficHistory, setTrafficHistory] = useState<
-  { time: string; congestion: number }[]
+  {
+    time: string;
+    congestion: number;
+    roadId: string;
+  }[]
 >([]);
 
   useEffect(() => {
@@ -71,16 +76,16 @@ const [trafficHistory, setTrafficHistory] = useState<
       (total, road) => total + road.congestion,
       0
     ) / updatedRoads.length;
-    const historyPoint = {
+  const historyPoints = updatedRoads.map((road) => ({
   time: new Date().toLocaleTimeString(),
-  congestion: Number(congestion.toFixed(1)),
-};
+  congestion: road.congestion,
+  roadId: road.road_id,
+}));
 
 setTrafficHistory((previous) => [
-  ...previous.slice(-19),
-  historyPoint,
-]);
-
+  ...previous,
+  ...historyPoints,
+].slice(-80));
   const activeAlerts = updatedRoads.filter(
     (road) => road.status === "Heavy"
   ).length;
@@ -188,6 +193,9 @@ setTrafficHistory((previous) => [
       </div>
       <div className="mt-6">
   <TrafficChart data={trafficHistory} />
+  <div className="mt-6">
+  <TrafficAlerts roads={roads} />
+</div>
 </div>
 
     </div>
