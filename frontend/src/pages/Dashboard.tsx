@@ -6,12 +6,10 @@ import TrafficMap from "../components/dashboard/TrafficMap";
 import TrafficChart from "../components/dashboard/TrafficChart";
 import TrafficAlerts from "../components/dashboard/TrafficAlerts";
 import TrafficPrediction from "../components/dashboard/TrafficPrediction";
+import WhatIfSimulator from "../components/dashboard/WhatIfSimulator";
 
 import {
-  getTrafficRoads,
-  getTrafficPredictions,
-  getTrafficRecommendations,
-  connectTrafficWebSocket,
+  getTrafficDashboard,
   type RoadTraffic,
   type TrafficPrediction as TrafficPredictionData,
   type TrafficRecommendation,
@@ -42,53 +40,22 @@ function Dashboard() {
     useState<string | null>(null);
 
   useEffect(() => {
-    getTrafficRoads()
-      .then((data) => {
-        setRoads(data);
-      })
-      .catch(() => {
-        setError(
-          "Unable to load road traffic data."
-        );
-      });
+    let cancelled = false;
 
-    getTrafficPredictions()
-      .then((data) => {
-        setPredictions(data);
-      })
-      .catch(() => {
-        setError(
-          "Unable to load traffic predictions."
-        );
-      });
+    const loadTrafficData = async () => {
+      try {
+        const data = await getTrafficDashboard();
 
-    getTrafficRecommendations()
-      .then((data) => {
-        setRecommendations(data);
-      })
-      .catch(() => {
-        setError(
-          "Unable to load traffic recommendations."
-        );
-      });
+        if (cancelled) {
+          return;
+        }
 
-    const socket = connectTrafficWebSocket(
-      (
-        updatedRoads,
-        updatedPredictions,
-        updatedRecommendations
-      ) => {
-        setRoads(updatedRoads);
-
-        setPredictions(updatedPredictions);
-
-        setRecommendations(
-          updatedRecommendations
-        );
-
+        setRoads(data.roads);
+        setPredictions(data.predictions);
+        setRecommendations(data.recommendations);
         setLastUpdated(new Date());
 
-        const historyPoints = updatedRoads.map(
+        const historyPoints = data.roads.map(
           (road) => ({
             time: new Date().toLocaleTimeString(),
             congestion: road.congestion,
@@ -100,11 +67,27 @@ function Dashboard() {
           ...previous,
           ...historyPoints,
         ]);
+
+        setError(null);
+      } catch {
+        if (!cancelled) {
+          setError(
+            "Unable to load live traffic data."
+          );
+        }
       }
+    };
+
+    loadTrafficData();
+
+    const interval = window.setInterval(
+      loadTrafficData,
+      2000
     );
 
     return () => {
-      socket.close();
+      cancelled = true;
+      window.clearInterval(interval);
     };
   }, []);
 
@@ -136,7 +119,7 @@ function Dashboard() {
     (road) => road.congestion >= 45
   ).length;
 
-  if (error) {
+  if (error && roads.length === 0) {
     return (
       <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-5">
         <p className="text-red-400">
@@ -181,6 +164,13 @@ function Dashboard() {
               {lastUpdated.toLocaleTimeString()}
             </span>
           </div>
+        )}
+
+        {error && (
+          <p className="mt-2 text-sm text-yellow-400">
+            Temporary update issue. Showing the
+            latest available traffic data.
+          </p>
         )}
       </div>
 
@@ -228,7 +218,12 @@ function Dashboard() {
         />
       </div>
 
-      {/* Traffic Recommendations */}
+      {/* What-If Traffic Simulation */}
+      <div className="mt-6">
+        <WhatIfSimulator roads={roads} />
+      </div>
+
+      {/* AI Traffic Recommendations */}
       <div className="mt-6 rounded-xl border border-slate-800 bg-slate-900 p-5">
         <div>
           <h3 className="text-lg font-semibold text-white">
@@ -272,7 +267,10 @@ function Dashboard() {
                       recommendation.priority ===
                       "Critical"
                         ? "bg-red-500/10 text-red-400"
-                        : "bg-yellow-500/10 text-yellow-400"
+                        : recommendation.priority ===
+                          "High"
+                        ? "bg-yellow-500/10 text-yellow-400"
+                        : "bg-slate-500/10 text-slate-300"
                     }`}
                   >
                     {recommendation.priority}
@@ -280,7 +278,9 @@ function Dashboard() {
                 </div>
 
                 <p className="mt-3 text-sm text-slate-200">
-                  {recommendation.recommended_action}
+                  {
+                    recommendation.recommended_action
+                  }
                 </p>
 
                 {recommendation.alternative_road && (

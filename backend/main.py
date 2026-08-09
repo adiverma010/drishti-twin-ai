@@ -1,6 +1,4 @@
-import asyncio
-
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from services.traffic_service import simulate_traffic
@@ -9,6 +7,9 @@ from services.prediction_engine import record_traffic
 from services.recommendation_service import (
     generate_recommendations,
 )
+from services.what_if_service import (
+    simulate_what_if,
+)
 
 
 app = FastAPI(title="Drishti TwinAI API")
@@ -16,7 +17,9 @@ app = FastAPI(title="Drishti TwinAI API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=[
+        "http://localhost:5173"
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -53,9 +56,7 @@ def traffic_predictions():
 
     record_traffic(roads)
 
-    predictions = predict_from_roads(roads)
-
-    return predictions
+    return predict_from_roads(roads)
 
 
 @app.get("/api/traffic/recommendations")
@@ -64,62 +65,57 @@ def traffic_recommendations():
 
     record_traffic(roads)
 
-    predictions = predict_from_roads(roads)
+    predictions = predict_from_roads(
+        roads
+    )
 
     return generate_recommendations(
         roads,
         predictions,
     )
+@app.get("/api/traffic/dashboard")
+def traffic_dashboard():
+    roads = simulate_traffic()
 
-@app.websocket("/ws/traffic")
-async def traffic_websocket(
-    websocket: WebSocket,
+    record_traffic(roads)
+
+    predictions = predict_from_roads(
+        roads
+    )
+
+    recommendations = generate_recommendations(
+        roads,
+        predictions,
+    )
+
+    return {
+        "roads": roads,
+        "predictions": predictions,
+        "recommendations": recommendations,
+    }
+
+@app.get("/api/traffic/what-if/{road_id}")
+def traffic_what_if(
+    road_id: str,
+    change: float = 15,
 ):
-    await websocket.accept()
+    roads = simulate_traffic()
 
-    try:
-        while True:
-            roads = simulate_traffic()
+    road = next(
+        (
+            item
+            for item in roads
+            if item.road_id == road_id
+        ),
+        None,
+    )
 
-            record_traffic(roads)
+    if road is None:
+        return {
+            "error": f"Road {road_id} not found."
+        }
 
-            predictions = predict_from_roads(
-                roads
-            )
-
-            recommendations = (
-                generate_recommendations(
-                    roads,
-                    predictions,
-                )
-            )
-
-            try:
-                await websocket.send_json(
-                    {
-                        "roads": [
-                            road.model_dump()
-                            for road in roads
-                        ],
-                        "predictions": predictions,
-                        "recommendations":
-                            recommendations,
-                    }
-                )
-
-            except (
-                WebSocketDisconnect,
-                RuntimeError,
-            ):
-                break
-
-            await asyncio.sleep(2)
-
-    except WebSocketDisconnect:
-        pass
-
-    except asyncio.CancelledError:
-        raise
-
-    finally:
-        print("Traffic WebSocket closed")
+    return simulate_what_if(
+        road,
+        change,
+    )

@@ -25,13 +25,32 @@ export interface TrafficRecommendation {
   priority: string;
   current_congestion: number;
   predicted_congestion: number;
+  congestion_change?: number;
   recommended_action: string;
   alternative_road: string | null;
 }
 
-export async function getTrafficRoads(): Promise<
-  RoadTraffic[]
-> {
+export interface DashboardTrafficData {
+  roads: RoadTraffic[];
+  predictions: TrafficPrediction[];
+  recommendations: TrafficRecommendation[];
+}
+
+export async function getTrafficDashboard(): Promise<DashboardTrafficData> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/traffic/dashboard`
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      "Failed to fetch dashboard traffic data"
+    );
+  }
+
+  return response.json();
+}
+
+export async function getTrafficRoads(): Promise<RoadTraffic[]> {
   const response = await fetch(
     `${API_BASE_URL}/api/traffic/roads`
   );
@@ -75,34 +94,4 @@ export async function getTrafficRecommendations(): Promise<
   }
 
   return response.json();
-}
-
-export function connectTrafficWebSocket(
-  onUpdate: (
-    roads: RoadTraffic[],
-    predictions: TrafficPrediction[],
-    recommendations: TrafficRecommendation[]
-  ) => void
-) {
-  const socket = new WebSocket(
-    "ws://127.0.0.1:8000/ws/traffic"
-  );
-
-  socket.onmessage = (event) => {
-    const data = JSON.parse(event.data);
-
-    onUpdate(
-      data.roads,
-      data.predictions,
-      data.recommendations
-    );
-  };
-
-  socket.onerror = () => {
-    console.error(
-      "Traffic WebSocket connection failed"
-    );
-  };
-
-  return socket;
 }
