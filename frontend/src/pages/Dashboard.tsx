@@ -10,9 +10,11 @@ import TrafficPrediction from "../components/dashboard/TrafficPrediction";
 import {
   getTrafficRoads,
   getTrafficPredictions,
+  getTrafficRecommendations,
   connectTrafficWebSocket,
   type RoadTraffic,
   type TrafficPrediction as TrafficPredictionData,
+  type TrafficRecommendation,
 } from "../services/trafficApi";
 
 function Dashboard() {
@@ -20,6 +22,9 @@ function Dashboard() {
 
   const [predictions, setPredictions] =
     useState<TrafficPredictionData[]>([]);
+
+  const [recommendations, setRecommendations] =
+    useState<TrafficRecommendation[]>([]);
 
   const [trafficHistory, setTrafficHistory] =
     useState<
@@ -57,11 +62,29 @@ function Dashboard() {
         );
       });
 
+    getTrafficRecommendations()
+      .then((data) => {
+        setRecommendations(data);
+      })
+      .catch(() => {
+        setError(
+          "Unable to load traffic recommendations."
+        );
+      });
+
     const socket = connectTrafficWebSocket(
-      (updatedRoads, updatedPredictions) => {
+      (
+        updatedRoads,
+        updatedPredictions,
+        updatedRecommendations
+      ) => {
         setRoads(updatedRoads);
 
         setPredictions(updatedPredictions);
+
+        setRecommendations(
+          updatedRecommendations
+        );
 
         setLastUpdated(new Date());
 
@@ -84,11 +107,6 @@ function Dashboard() {
       socket.close();
     };
   }, []);
-
-  /*
-   * Calculate dashboard statistics
-   * directly from the live road data.
-   */
 
   const activeVehicles = roads.reduce(
     (total, road) =>
@@ -208,6 +226,85 @@ function Dashboard() {
         <TrafficPrediction
           predictions={predictions}
         />
+      </div>
+
+      {/* Traffic Recommendations */}
+      <div className="mt-6 rounded-xl border border-slate-800 bg-slate-900 p-5">
+        <div>
+          <h3 className="text-lg font-semibold text-white">
+            AI Traffic Recommendations
+          </h3>
+
+          <p className="mt-1 text-sm text-slate-400">
+            Recommended actions based on live
+            traffic conditions and predictions
+          </p>
+        </div>
+
+        <div className="mt-4 space-y-3">
+          {recommendations.map(
+            (recommendation) => (
+              <div
+                key={recommendation.road_id}
+                className="rounded-lg border border-slate-800 bg-slate-800/50 p-4"
+              >
+                <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                  <div>
+                    <p className="font-medium text-white">
+                      {recommendation.road_name}
+                    </p>
+
+                    <p className="mt-1 text-sm text-slate-400">
+                      Current:{" "}
+                      {recommendation.current_congestion.toFixed(
+                        1
+                      )}
+                      % → Predicted:{" "}
+                      {recommendation.predicted_congestion.toFixed(
+                        1
+                      )}
+                      %
+                    </p>
+                  </div>
+
+                  <span
+                    className={`inline-flex w-fit rounded-full px-3 py-1 text-xs font-semibold ${
+                      recommendation.priority ===
+                      "Critical"
+                        ? "bg-red-500/10 text-red-400"
+                        : "bg-yellow-500/10 text-yellow-400"
+                    }`}
+                  >
+                    {recommendation.priority}
+                  </span>
+                </div>
+
+                <p className="mt-3 text-sm text-slate-200">
+                  {recommendation.recommended_action}
+                </p>
+
+                {recommendation.alternative_road && (
+                  <p className="mt-2 text-sm text-cyan-400">
+                    Suggested alternative:{" "}
+                    {
+                      recommendation.alternative_road
+                    }
+                  </p>
+                )}
+              </div>
+            )
+          )}
+
+          {recommendations.length === 0 && (
+            <div className="rounded-lg border border-slate-800 bg-slate-800/50 p-4">
+              <p className="text-sm text-slate-400">
+                No immediate traffic
+                recommendations. Current traffic
+                conditions are manageable.
+              </p>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Traffic Alerts */}

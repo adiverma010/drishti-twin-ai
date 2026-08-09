@@ -19,6 +19,16 @@ export interface TrafficPrediction {
   confidence: string;
 }
 
+export interface TrafficRecommendation {
+  road_id: string;
+  road_name: string;
+  priority: string;
+  current_congestion: number;
+  predicted_congestion: number;
+  recommended_action: string;
+  alternative_road: string | null;
+}
+
 export async function getTrafficRoads(): Promise<
   RoadTraffic[]
 > {
@@ -51,10 +61,27 @@ export async function getTrafficPredictions(): Promise<
   return response.json();
 }
 
+export async function getTrafficRecommendations(): Promise<
+  TrafficRecommendation[]
+> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/traffic/recommendations`
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      "Failed to fetch traffic recommendations"
+    );
+  }
+
+  return response.json();
+}
+
 export function connectTrafficWebSocket(
   onUpdate: (
     roads: RoadTraffic[],
-    predictions: TrafficPrediction[]
+    predictions: TrafficPrediction[],
+    recommendations: TrafficRecommendation[]
   ) => void
 ) {
   const socket = new WebSocket(
@@ -66,7 +93,8 @@ export function connectTrafficWebSocket(
 
     onUpdate(
       data.roads,
-      data.predictions
+      data.predictions,
+      data.recommendations
     );
   };
 

@@ -1,11 +1,14 @@
 import asyncio
 
-from fastapi import FastAPI, WebSocket
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
 from services.traffic_service import simulate_traffic
 from services.prediction_service import predict_from_roads
 from services.prediction_engine import record_traffic
+from services.recommendation_service import (
+    generate_recommendations,
+)
 
 
 app = FastAPI(title="Drishti TwinAI API")
@@ -50,8 +53,23 @@ def traffic_predictions():
 
     record_traffic(roads)
 
-    return predict_from_roads(roads)
+    predictions = predict_from_roads(roads)
 
+    return predictions
+
+
+@app.get("/api/traffic/recommendations")
+def traffic_recommendations():
+    roads = simulate_traffic()
+
+    record_traffic(roads)
+
+    predictions = predict_from_roads(roads)
+
+    return generate_recommendations(
+        roads,
+        predictions,
+    )
 
 @app.websocket("/ws/traffic")
 async def traffic_websocket(
@@ -61,31 +79,47 @@ async def traffic_websocket(
 
     try:
         while True:
-            # Generate one live traffic state.
             roads = simulate_traffic()
 
-            # Store this state in prediction history.
             record_traffic(roads)
 
-            # Generate predictions from the
-            # same roads and stored history.
             predictions = predict_from_roads(
                 roads
             )
 
-            await websocket.send_json(
-                {
-                    "roads": [
-                        road.model_dump()
-                        for road in roads
-                    ],
-                    "predictions": predictions,
-                }
+            recommendations = (
+                generate_recommendations(
+                    roads,
+                    predictions,
+                )
             )
+
+            try:
+                await websocket.send_json(
+                    {
+                        "roads": [
+                            road.model_dump()
+                            for road in roads
+                        ],
+                        "predictions": predictions,
+                        "recommendations":
+                            recommendations,
+                    }
+                )
+
+            except (
+                WebSocketDisconnect,
+                RuntimeError,
+            ):
+                break
 
             await asyncio.sleep(2)
 
-    except Exception:
-        print(
-            "Traffic WebSocket disconnected"
-        )
+    except WebSocketDisconnect:
+        pass
+
+    except asyncio.CancelledError:
+        raise
+
+    finally:
+        print("Traffic WebSocket closed")
