@@ -32,6 +32,9 @@ function TrafficPrediction({
             prediction.predicted_congestion -
             prediction.current_congestion;
 
+          const isIncreasing = change > 0;
+          const isDecreasing = change < 0;
+
           const isHigh =
             prediction.prediction_status === "High";
 
@@ -42,11 +45,23 @@ function TrafficPrediction({
               ? "text-yellow-400"
               : "text-slate-400";
 
+          let insight =
+            "Traffic conditions are expected to remain relatively stable.";
+
+          if (isIncreasing) {
+            insight =
+              "Traffic is expected to worsen based on the recent congestion trend.";
+          } else if (isDecreasing) {
+            insight =
+              "Traffic is expected to improve based on the recent congestion trend.";
+          }
+
           return (
             <div
               key={prediction.road_id}
               className="rounded-lg border border-slate-800 bg-slate-800/50 p-4"
             >
+              {/* Road information */}
               <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <div>
                   <p className="font-medium text-white">
@@ -59,6 +74,7 @@ function TrafficPrediction({
                   </p>
                 </div>
 
+                {/* Prediction */}
                 <div className="text-left md:text-right">
                   <p className="text-sm text-slate-400">
                     Predicted
@@ -76,9 +92,11 @@ function TrafficPrediction({
 
                   <p
                     className={`text-sm ${
-                      change > 0
+                      isIncreasing
                         ? "text-red-400"
-                        : "text-green-400"
+                        : isDecreasing
+                        ? "text-green-400"
+                        : "text-slate-400"
                     }`}
                   >
                     {change > 0 ? "+" : ""}
@@ -87,7 +105,8 @@ function TrafficPrediction({
                 </div>
               </div>
 
-              <div className="mt-3 flex items-center gap-3">
+              {/* Status + Confidence */}
+              <div className="mt-3 flex flex-wrap items-center gap-3">
                 <span
                   className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${
                     isHigh
@@ -103,6 +122,17 @@ function TrafficPrediction({
                 >
                   Confidence: {prediction.confidence}
                 </span>
+              </div>
+
+              {/* Prediction Insight */}
+              <div className="mt-3 border-t border-slate-700 pt-3">
+                <p className="text-sm text-slate-400">
+                  Prediction Insight
+                </p>
+
+                <p className="mt-1 text-sm text-slate-200">
+                  {insight}
+                </p>
               </div>
             </div>
           );
