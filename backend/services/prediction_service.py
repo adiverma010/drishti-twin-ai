@@ -1,5 +1,9 @@
 from models.traffic import RoadTraffic
 
+from services.prediction_engine import (
+    predict_next_congestion,
+)
+
 
 def predict_from_roads(
     roads: list[RoadTraffic],
@@ -7,22 +11,10 @@ def predict_from_roads(
     predictions = []
 
     for road in roads:
-        current_congestion = road.congestion
-
-        if current_congestion >= 75:
-            predicted_change = 5
-        elif current_congestion >= 45:
-            predicted_change = 3
-        else:
-            predicted_change = 1
-
-        predicted_congestion = min(
-            100,
-            round(
-                current_congestion + predicted_change,
-                1,
-            ),
-        )
+        (
+            predicted_congestion,
+            confidence,
+        ) = predict_next_congestion(road)
 
         if predicted_congestion >= 75:
             prediction_status = "High"
@@ -35,9 +27,10 @@ def predict_from_roads(
             {
                 "road_id": road.road_id,
                 "road_name": road.road_name,
-                "current_congestion": current_congestion,
+                "current_congestion": road.congestion,
                 "predicted_congestion": predicted_congestion,
                 "prediction_status": prediction_status,
+                "confidence": confidence,
             }
         )
 

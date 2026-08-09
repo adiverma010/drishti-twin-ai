@@ -1,10 +1,10 @@
-
 interface TrafficPredictionData {
   road_id: string;
   road_name: string;
   current_congestion: number;
   predicted_congestion: number;
   prediction_status: string;
+  confidence: string;
 }
 
 interface TrafficPredictionProps {
@@ -34,6 +34,13 @@ function TrafficPrediction({
 
           const isHigh =
             prediction.prediction_status === "High";
+
+          const confidenceClass =
+            prediction.confidence === "High"
+              ? "text-green-400"
+              : prediction.confidence === "Medium"
+              ? "text-yellow-400"
+              : "text-slate-400";
 
           return (
             <div
@@ -80,7 +87,7 @@ function TrafficPrediction({
                 </div>
               </div>
 
-              <div className="mt-3">
+              <div className="mt-3 flex items-center gap-3">
                 <span
                   className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${
                     isHigh
@@ -89,6 +96,12 @@ function TrafficPrediction({
                   }`}
                 >
                   {prediction.prediction_status}
+                </span>
+
+                <span
+                  className={`text-sm font-semibold ${confidenceClass}`}
+                >
+                  Confidence: {prediction.confidence}
                 </span>
               </div>
             </div>

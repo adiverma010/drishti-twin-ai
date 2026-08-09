@@ -16,20 +16,7 @@ export interface TrafficPrediction {
   current_congestion: number;
   predicted_congestion: number;
   prediction_status: string;
-}
-
-export async function getTrafficOverview() {
-  const response = await fetch(
-    `${API_BASE_URL}/api/traffic/overview`
-  );
-
-  if (!response.ok) {
-    throw new Error(
-      "Failed to fetch traffic overview"
-    );
-  }
-
-  return response.json();
+  confidence: string;
 }
 
 export async function getTrafficRoads(): Promise<

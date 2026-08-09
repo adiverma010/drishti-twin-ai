@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from services.traffic_service import simulate_traffic
 from services.prediction_service import predict_from_roads
+from services.prediction_engine import record_traffic
 
 
 app = FastAPI(title="Drishti TwinAI API")
@@ -46,18 +47,31 @@ def traffic_roads():
 @app.get("/api/traffic/predictions")
 def traffic_predictions():
     roads = simulate_traffic()
+
+    record_traffic(roads)
+
     return predict_from_roads(roads)
 
 
 @app.websocket("/ws/traffic")
-async def traffic_websocket(websocket: WebSocket):
+async def traffic_websocket(
+    websocket: WebSocket,
+):
     await websocket.accept()
 
     try:
         while True:
+            # Generate one live traffic state.
             roads = simulate_traffic()
 
-            predictions = predict_from_roads(roads)
+            # Store this state in prediction history.
+            record_traffic(roads)
+
+            # Generate predictions from the
+            # same roads and stored history.
+            predictions = predict_from_roads(
+                roads
+            )
 
             await websocket.send_json(
                 {
@@ -72,4 +86,6 @@ async def traffic_websocket(websocket: WebSocket):
             await asyncio.sleep(2)
 
     except Exception:
-        print("Traffic WebSocket disconnected")
+        print(
+            "Traffic WebSocket disconnected"
+        )
